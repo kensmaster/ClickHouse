@@ -8,20 +8,7 @@ from typing import Tuple
 
 from artifactory import ArtifactorySaaSPath  # type: ignore
 from build_download_helper import dowload_build_with_progress
-from git_helper import SHA_REGEXP, TAG_REGEXP
-
-
-# Py 3.8 removeprefix and removesuffix
-def removeprefix(string: str, prefix: str):
-    if string.startswith(prefix):
-        return string[len(prefix) :]  # noqa: ignore E203, false positive
-    return string
-
-
-def removesuffix(string: str, suffix: str):
-    if string.endswith(suffix):
-        return string[: -len(suffix)]
-    return string
+from git_helper import SHA_REGEXP, TAG_REGEXP, removeprefix, removesuffix
 
 
 # Necessary ENV variables

@@ -8,6 +8,19 @@ TAG_REGEXP = r"^v\d{2}[.][1-9]\d*[.][1-9]\d*[.][1-9]\d*-(testing|prestable|stabl
 SHA_REGEXP = r"^([0-9]|[a-f]){40}$"
 
 
+# Py 3.8 removeprefix and removesuffix
+def removeprefix(string: str, prefix: str):
+    if string.startswith(prefix):
+        return string[len(prefix) :]  # noqa: ignore E203, false positive
+    return string
+
+
+def removesuffix(string: str, suffix: str):
+    if string.endswith(suffix):
+        return string[: -len(suffix)]
+    return string
+
+
 class Runner:
     """lightweight check_output wrapper with stripping last NEW_LINE"""
 
