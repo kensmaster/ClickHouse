@@ -4,6 +4,7 @@ import logging
 import os.path as p
 import subprocess
 import sys
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from typing import Dict, Tuple, Union
 
 from git_helper import Git
@@ -63,6 +64,11 @@ class ClickHouseVersion:
         self._git = git
         self._describe = ""
 
+    def update(self, part: str) -> "ClickHouseVersion":
+        """If part is valid, returns a new version"""
+        method = getattr(self, f"{part}_update")
+        return method()
+
     def major_update(self) -> "ClickHouseVersion":
         return ClickHouseVersion(self.major + 1, 1, 1, 1, self.revision + 1, self._git)
 
@@ -119,6 +125,7 @@ class ClickHouseVersion:
             "major": self.major,
             "minor": self.minor,
             "patch": self.patch,
+            "tweak": self.tweak,
             "githash": self.githash,
             "describe": self.describe,
             "string": self.string,
@@ -138,12 +145,13 @@ class VersionType:
     PRESTABLE = "prestable"
     STABLE = "stable"
     TESTING = "testing"
-    VALID = (LTS, PRESTABLE, STABLE, TESTING)
+    VALID = (TESTING, PRESTABLE, STABLE, LTS)
 
 
-def read_versions(filename: str) -> VERSIONS:
+def read_versions(versions_path: str = FILE_WITH_VERSION_PATH) -> VERSIONS:
     versions = {}
-    with open(filename, "r", encoding="utf-8") as f:
+    path_to_file = p.join(git.root, versions_path)
+    with open(path_to_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line.startswith("SET("):
@@ -164,8 +172,7 @@ def read_versions(filename: str) -> VERSIONS:
 def get_version_from_repo(
     versions_path: str = FILE_WITH_VERSION_PATH,
 ) -> ClickHouseVersion:
-    path_to_file = p.join(git.root, versions_path)
-    versions = read_versions(path_to_file)
+    versions = read_versions(versions_path)
     versions["tweak"] = git.tweak
     return ClickHouseVersion(
         versions["major"],
@@ -179,11 +186,9 @@ def get_version_from_repo(
 
 def update_cmake_version(
     version: ClickHouseVersion,
-    version_type: str,
     versions_path: str = FILE_WITH_VERSION_PATH,
 ):
     path_to_file = p.join(git.root, versions_path)
-    version.with_description(version_type)
     with open(path_to_file, "w", encoding="utf-8") as f:
         f.write(VERSIONS_TEMPLATE.format_map(version.as_dict()))
 
@@ -244,6 +249,62 @@ def _update_dockerfile(repo_path: str, version: ClickHouseVersion):
 
 def update_version_local(repo_path, version, version_type="testing"):
     update_contributors()
+    version.with_description(version_type)
     update_cmake_version(version, version_type)
     _update_changelog(repo_path, version)
     _update_dockerfile(repo_path, version)
+
+
+def main():
+    """The simplest thing it does - reads versions from cmake and produce the
+    environment variables that may be sourced in bash scripts"""
+    parser = ArgumentParser(
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        description="The script reads versions from cmake and produce ENV variables",
+    )
+    parser.add_argument(
+        "--version-path",
+        "-p",
+        default=FILE_WITH_VERSION_PATH,
+        help="relative path to the cmake file with versions",
+    )
+    parser.add_argument(
+        "--version-type",
+        "-t",
+        choices=VersionType.VALID,
+        help="optional parameter to generate DESCRIBE",
+    )
+    parser.add_argument(
+        "--export",
+        "-e",
+        action="store_true",
+        help="if the ENV variables should be exported",
+    )
+    parser.add_argument(
+        "--update",
+        "-u",
+        choices=("major", "minor", "patch", "tweak"),
+        help="the version part to update",
+    )
+    args = parser.parse_args()
+
+    version = get_version_from_repo(args.version_path)
+
+    if args.update:
+        version = version.update(args.update)
+
+    if args.version_type:
+        version.with_description(args.version_type)
+
+    if args.update:
+        update_cmake_version(version)
+
+    for k, v in version.as_dict().items():
+        name = f"CLICKHOUSE_VERSION_{k.upper()}"
+        print(f"{name}='{v}'")
+        if args.export:
+            print(f"export {name}")
+
+
+if __name__ == "__main__":
+    main()
