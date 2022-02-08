@@ -87,10 +87,7 @@ def get_packager_cmd(
 
 
 def get_image_name(build_config: BuildConfig) -> str:
-    if build_config["package_type"] != "deb":
-        return "clickhouse/binary-builder"
-    else:
-        return "clickhouse/deb-builder"
+    return "clickhouse/binary-builder"
 
 
 def build_clickhouse(

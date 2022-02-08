@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Avoid dependency on locale
+LC_ALL=C
+
+CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$CUR_DIR"
+
+ROOT_DIR=$(readlink -f "$(git rev-parse --show-cdup)")
+
+PKG_ROOT='root'
+
+SOURCE=${SOURCE:-$PKG_ROOT}
+SANITIZER=${SANITIZER:-""}
+OUTPUT_DIR=${OUTPUT_DIR:-$ROOT_DIR}
+
+HELP="${0} [--test] [--rpm] [-h|--help]
+  --test - adds '+test' prefix to version
+  --rpm - build RPM packages
+  --tgz - build tarball package
+  --help - show this help and exit
+
+Used envs:
+  SOURCE='${SOURCE}' - directory with sources tree
+  SANITIZER='${SANITIZER}' - if any sanitizer is used, affects version string
+  OUTPUT_DIR='${OUTPUT_DIR}' - where the artifact will be placed
+"
+
+eval "$("$ROOT_DIR/tests/ci/version_helper.py" -e)"
+
+CLICKHOUSE_VERSION_STRING=${VERSION_STRING:-$CLICKHOUSE_VERSION_STRING}
+export CLICKHOUSE_VERSION_STRING
+
+while [[ $1 == --* ]]
+do
+    case "$1" in
+        --test )
+            VERSION_POSTFIX+='+test'
+            shift ;;
+        --rpm )
+            MAKE_RPM=1
+            shift ;;
+        --tgz )
+            MAKE_TGZ=1
+            shift ;;
+        --help )
+            echo "$HELP"
+            exit ;;
+        * )
+            echo "Unknown option $1"
+            exit 2 ;;
+    esac
+done
+
+# Build options
+if [ -n "$SANITIZER" ]; then
+    if [[ "$SANITIZER" == "address" ]]; then VERSION_POSTFIX+="+asan"
+    elif [[ "$SANITIZER" == "thread" ]]; then VERSION_POSTFIX+="+tsan"
+    elif [[ "$SANITIZER" == "memory" ]]; then VERSION_POSTFIX+="+msan"
+    elif [[ "$SANITIZER" == "undefined" ]]; then VERSION_POSTFIX+="+ubsan"
+    else
+        echo "Unknown value of SANITIZER variable: $SANITIZER"
+        exit 3
+    fi
+elif [[ $BUILD_TYPE == 'debug' ]]; then
+    VERSION_POSTFIX+="+debug"
+fi
+
+if [[ "$PKG_ROOT" != "$SOURCE" ]]; then
+    # packages are built only from PKG_SOURCE
+    rm -rf "./$PKG_ROOT"
+    ln -sf "$SOURCE" "$PKG_SOURCE"
+fi
+
+CLICKHOUSE_VERSION_STRING+=$VERSION_POSTFIX
+echo -e "\nCurrent version is $CLICKHOUSE_VERSION_STRING"
+
+for config in clickhouse*.yaml; do
+    nfpm package -f "$config" -p deb
+    if [ -n "$MAKE_RPM" ]; then
+        nfpm package -f "$config" -p rpm
+    fi
+done
+
+if [ -n "$MAKE_TGZ" ]; then
+    make_tgz
+fi

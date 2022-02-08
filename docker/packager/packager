@@ -8,11 +8,6 @@ import sys
 
 SCRIPT_PATH = os.path.realpath(__file__)
 
-IMAGE_MAP = {
-    "deb": "clickhouse/deb-builder",
-    "binary": "clickhouse/binary-builder",
-}
-
 
 def check_image_exists_locally(image_name):
     try:
@@ -131,7 +126,7 @@ def parse_env_variables(
         cmake_flags.append(
             "-DCMAKE_TOOLCHAIN_FILE=/build/cmake/linux/toolchain-aarch64.cmake"
         )
-        result.append("DEB_ARCH_FLAG=-aarm64")
+        result.append("DEB_ARCH=arm64")
     elif is_cross_freebsd:
         cc = compiler[: -len(FREEBSD_SUFFIX)]
         cmake_flags.append(
@@ -144,21 +139,21 @@ def parse_env_variables(
         )
     else:
         cc = compiler
-        result.append("DEB_ARCH_FLAG=-aamd64")
+        result.append("DEB_ARCH=amd64")
 
     cxx = cc.replace("gcc", "g++").replace("clang", "clang++")
 
     if image_type == "deb":
-        result.append(f"DEB_CC={cc}")
-        result.append(f"DEB_CXX={cxx}")
-        # For building fuzzers
-        result.append(f"CC={cc}")
-        result.append(f"CXX={cxx}")
-    elif image_type == "binary":
-        result.append(f"CC={cc}")
-        result.append(f"CXX={cxx}")
-        cmake_flags.append(f"-DCMAKE_C_COMPILER=`which {cc}`")
-        cmake_flags.append(f"-DCMAKE_CXX_COMPILER=`which {cxx}`")
+        prefix = "/build/packages/root"
+        result.append("MAKE_DEB=true")
+        cmake_flags.append(f"-DCMAKE_INSTALL_PREFIX={prefix}/usr")
+        cmake_flags.append(f"-DCMAKE_INSTALL_SYSCONFDIR={prefix}/etc")
+        cmake_flags.append(f"-DCMAKE_INSTALL_LOCALSTATEDIR={prefix}/var")
+
+    result.append(f"CC={cc}")
+    result.append(f"CXX={cxx}")
+    cmake_flags.append(f"-DCMAKE_C_COMPILER=`which {cc}`")
+    cmake_flags.append(f"-DCMAKE_CXX_COMPILER=`which {cxx}`")
 
     # Create combined output archive for split build and for performance tests.
     if package_type == "performance":
@@ -192,9 +187,8 @@ def parse_env_variables(
         result.append('DISTCC_HOSTS="localhost/`nproc`"')
 
     if alien_pkgs:
-        result.append(
-            "ALIEN_PKGS='" + " ".join(["--" + pkg for pkg in alien_pkgs]) + "'"
-        )
+        result.append("MAKE_RPM=true")
+        result.append("MAKE_TGZ=true")
 
     if with_binaries == "programs":
         result.append("BINARY_OUTPUT=programs")
@@ -317,7 +311,7 @@ if __name__ == "__main__":
         args.output_dir = os.path.abspath(os.path.join(os.getcwd(), args.output_dir))
 
     image_type = "binary" if args.package_type == "performance" else args.package_type
-    image_name = IMAGE_MAP[image_type]
+    image_name = "clickhouse/binary-builder"
 
     if not os.path.isabs(args.clickhouse_repo_path):
         ch_root = os.path.abspath(os.path.join(os.getcwd(), args.clickhouse_repo_path))
