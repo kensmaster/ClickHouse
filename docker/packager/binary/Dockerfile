@@ -101,7 +101,8 @@ ARG NFPM_VERSION=2.12.3
 
 RUN arch=${TARGETARCH:-amd64} \
   && curl -Lo /tmp/nfpm.deb "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${arch}.deb" \
-  && dpkg -i /tmp/nfpm.deb
+  && dpkg -i /tmp/nfpm.deb \
+  && rm /tmp/nfpm.deb
 
 COPY build.sh /
 CMD ["bash", "-c", "/build.sh 2>&1 | ts"]
