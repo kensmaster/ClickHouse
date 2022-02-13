@@ -209,29 +209,22 @@ def _update_changelog(repo_path: str, version: ClickHouseVersion):
 
 
 def update_contributors(relative_contributors_path: str = GENERATED_CONTRIBUTORS):
+    # Check if we have shallow checkout by comparing number of lines
+    # '--is-shallow-repository' is in git since 2.15, 2017-10-30
+    if git.run("git rev-parse --is-shallow-repository") == "true":
+        logging.warning("The repository is shallow, refusing to update contributors")
+        return
+
     contributors = git.run("git shortlog HEAD --summary")
     contributors = sorted(
         [c.split(maxsplit=1)[-1].replace('"', r"\"") for c in contributors.split("\n")],
     )
     contributors = [f'    "{c}",' for c in contributors]
-    # Check if we have shallow checkout by comparing number of lines
-    contributors_path = p.abspath(p.join(git.root, relative_contributors_path))
-    extra_lines = len(CONTRIBUTORS_TEMPLATE.split("\n")) - 1
-    with open(contributors_path, "r", encoding="utf-8") as cfd:
-        existing_contributors = len(cfd.readlines()) - extra_lines
-        if len(contributors) < existing_contributors:
-            logging.info(
-                "Refusing to update %s, given number of contributors %s "
-                "is less than existing %s",
-                contributors_path,
-                existing_contributors,
-                len(contributors),
-            )
-            return
 
     content = CONTRIBUTORS_TEMPLATE.format(
         executer=sys.argv[0], contributors="\n".join(contributors)
     )
+    contributors_path = p.abspath(p.join(git.root, relative_contributors_path))
     with open(contributors_path, "w", encoding="utf-8") as cfd:
         cfd.write(content)
 
