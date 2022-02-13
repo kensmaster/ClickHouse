@@ -12,9 +12,10 @@ ROOT_DIR=$(readlink -f "$(git rev-parse --show-cdup)")
 
 PKG_ROOT='root'
 
-SOURCE=${SOURCE:-$PKG_ROOT}
-SANITIZER=${SANITIZER:-""}
+DEB_ARCH=${DEB_ARCH:-amd64}
 OUTPUT_DIR=${OUTPUT_DIR:-$ROOT_DIR}
+SANITIZER=${SANITIZER:-""}
+SOURCE=${SOURCE:-$PKG_ROOT}
 
 HELP="${0} [--test] [--rpm] [-h|--help]
   --test - adds '+test' prefix to version
@@ -23,9 +24,10 @@ HELP="${0} [--test] [--rpm] [-h|--help]
   --help - show this help and exit
 
 Used envs:
-  SOURCE='${SOURCE}' - directory with sources tree
-  SANITIZER='${SANITIZER}' - if any sanitizer is used, affects version string
+  DEB_ARCH='${DEB_ARCH}'
   OUTPUT_DIR='${OUTPUT_DIR}' - where the artifact will be placed
+  SANITIZER='${SANITIZER}' - if any sanitizer is used, affects version string
+  SOURCE='${SOURCE}' - directory with sources tree
 "
 
 eval "$("$ROOT_DIR/tests/ci/version_helper.py" -e)"
@@ -78,9 +80,11 @@ CLICKHOUSE_VERSION_STRING+=$VERSION_POSTFIX
 echo -e "\nCurrent version is $CLICKHOUSE_VERSION_STRING"
 
 for config in clickhouse*.yaml; do
-    nfpm package -f "$config" -p deb
+    echo "Building deb package for $config"
+    nfpm package --target "$OUTPUT_DIR" --config "$config" --packager deb
     if [ -n "$MAKE_RPM" ]; then
-        nfpm package -f "$config" -p rpm
+      echo "Building rpm package for $config"
+        nfpm package --target "$OUTPUT_DIR" --config "$config" --packager rpm
     fi
 done
 

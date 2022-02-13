@@ -28,13 +28,17 @@ cache_status
 # clear cache stats
 ccache --zero-stats ||:
 
-# shellcheck disable=SC2086 # No quotes because I want it to expand to nothing if empty.
+# No quotes because I want it to expand to nothing if empty.
+# shellcheck disable=SC2086
 ninja $NINJA_FLAGS clickhouse-bundle
 
 cache_status
 
 if [ -n "$MAKE_DEB" ]; then
-  /build/packages/build
+# No quotes because I want it to expand to nothing if empty.
+# shellcheck disable=SC2086
+  DESTDIR=/build/packages/root ninja $NINJA_FLAGS install
+  bash -x /build/packages/build
 fi
 
 mv ./programs/clickhouse* /output

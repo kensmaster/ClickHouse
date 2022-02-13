@@ -85,6 +85,7 @@ def parse_env_variables(
     PPC_SUFFIX = "-ppc64le"
 
     result = []
+    result.append("OUTPUT_DIR=/output")
     cmake_flags = ["$CMAKE_FLAGS"]
 
     is_cross_darwin = compiler.endswith(DARWIN_SUFFIX)
@@ -144,11 +145,10 @@ def parse_env_variables(
     cxx = cc.replace("gcc", "g++").replace("clang", "clang++")
 
     if image_type == "deb":
-        prefix = "/build/packages/root"
         result.append("MAKE_DEB=true")
-        cmake_flags.append(f"-DCMAKE_INSTALL_PREFIX={prefix}/usr")
-        cmake_flags.append(f"-DCMAKE_INSTALL_SYSCONFDIR={prefix}/etc")
-        cmake_flags.append(f"-DCMAKE_INSTALL_LOCALSTATEDIR={prefix}/var")
+        cmake_flags.append("-DCMAKE_INSTALL_PREFIX=/usr")
+        cmake_flags.append("-DCMAKE_INSTALL_SYSCONFDIR=/etc")
+        cmake_flags.append("-DCMAKE_INSTALL_LOCALSTATEDIR=/var")
 
     result.append(f"CC={cc}")
     result.append(f"CXX={cxx}")
